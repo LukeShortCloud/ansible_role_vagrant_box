@@ -1,0 +1,60 @@
+---
+- name: Create the 'vagrant' group
+  group:
+    name: vagrant
+
+- name: Create 'vagrant' user
+  user:
+    name: vagrant
+    group: vagrant
+
+- name: Create a sudo configuration file for the 'vagrant' user
+  copy:
+    content: "vagrant ALL=(root) NOPASSWD:ALL"
+    dest: /etc/sudoers.d/vagrant
+    mode: 0440
+    owner: root
+    group: root
+
+- name: Install SSH
+  package:
+    name: openssh-server
+    state: present
+
+- name: Setup the Vagrant SSH public key
+  authorized_key:
+    user: vagrant
+    key: https://raw.githubusercontent.com/hashicorp/vagrant/master/keys/vagrant.pub
+  become: true
+  become_user: vagrant
+
+- name: Disable password authentication
+  lineinfile:
+    path: /etc/ssh/sshd_config
+    line: "{{ item.regexp }} {{ item.value }}"
+    regexp: "^{{ item.regexp }}"
+  loop:
+    - regexp: PasswordAuthentication
+      value: "no"
+    - regexp: PubKeyAuthentication
+      value: "yes"
+
+- name: Enable the SSH service
+  service:
+    name: sshd
+    enabled: true
+  when: ansible_os_family != "Debian"
+
+- name: Enable the SSH service (Debian)
+  service:
+    name: ssh
+    enabled: true
+  when: ansible_os_family == "Debian"
+
+- name: Install 'grubby' to configure the boot parameters
+  package:
+    name: grubby
+    state: present
+
+- name: Enable legacy network interface naming
+  command: grubby --update-kernel=ALL --args net.ifnames=0
